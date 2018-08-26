@@ -14,6 +14,7 @@ from slam_04_a_project_landmarks import\
 # j is the index of the reference_cylinder, to the result list.
 def find_cylinder_pairs(cylinders, reference_cylinders, max_radius):
     cylinder_pairs = []
+
     for i in range(len(cylinders)): 
         for  j in range(len(reference_cylinders)):
             cyl = cylinders[i]

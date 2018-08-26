@@ -10,6 +10,7 @@ from slam_b_library import filter_step
 from slam_04_a_project_landmarks import\
      compute_scanner_cylinders, write_cylinders
 from math import sqrt
+import numpy as np
 
 # Given a list of cylinders (points) and reference_cylinders:
 # For every cylinder, find the closest reference_cylinder and add
@@ -49,15 +50,55 @@ def compute_center(point_list):
 # i.e., the rotation angle is not given in radians, but rather in terms
 # of the cosine and sine.
 def estimate_transform(left_list, right_list, fix_scale = False):
+    # print(left_list)
     # Compute left and right center.
     lc = compute_center(left_list)
     rc = compute_center(right_list)
+    lxc = lc[0]
+    lyc = lc[1]
+    rxc = rc[0]
+    ryc = rc[1]
 
-    la, c, s, tx, ty = 0,0,0,0,0
+    # la, c, s, tx, ty = 0,0,0,0,0
+    cs, ss, rr, ll = 0,0,0,0
 
+    
+    if (len(left_list) > 1):
+        for i in range(len(left_list)):
+            lx = left_list[i][0]
+            ly = left_list[i][1]
+            rx = right_list[i][0]
+            ry = right_list[i][1]
+    
+            lxp = lx - lxc
+            lyp = ly - lyc
+            rxp = rx - rxc
+            ryp = ry - ryc
+
+            cs += (rxp*lxp) + (ryp*lyp)
+            ss += (-rxp*lyp) + (ryp*lxp)
+            rr += (rx*rx) + (ry*ry)
+            ll += (lx*lx) + (ly*ly)   
+
+            if fix_scale:
+                la = 1
+            else:
+                la = sqrt(rr/ll)
+
+            csnorm = sqrt(cs**2 + ss**2)
+            
+            c = cs/csnorm
+            s = ss/csnorm
+
+            tx = rxc - la*(c*lxc - s*lyc)
+            ty = ryc - la*(s*lxc + c*lyc)
+
+        return la, c, s, tx, ty
+    else: 
+        return None
     # --->>> Insert here your code to compute lambda, c, s and tx, ty.
 
-    return la, c, s, tx, ty
+    
 
 # Given a similarity transformation:
 # trafo = (scale, cos(angle), sin(angle), x_translation, y_translation)
@@ -115,11 +156,15 @@ if __name__ == '__main__':
         cylinder_pairs = find_cylinder_pairs(
             world_cylinders, reference_cylinders, max_cylinder_distance)
 
+        # print(cylinder_pairs)
+
         # Estimate a transformation using the cylinder pairs.
         trafo = estimate_transform(
             [world_cylinders[pair[0]] for pair in cylinder_pairs],
             [reference_cylinders[pair[1]] for pair in cylinder_pairs],
             fix_scale = True)
+        
+        
 
         # Transform the cylinders using the estimated transform.
         transformed_world_cylinders = []

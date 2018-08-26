@@ -18,6 +18,13 @@ from math import sqrt, atan2
 # This is the function developed in slam_04_b_find_cylinder_pairs.
 def find_cylinder_pairs(cylinders, reference_cylinders, max_radius):
     cylinder_pairs = []
+    for i in range(len(cylinders)):
+        for j in range(len(reference_cylinders)):
+            cyl = cylinders[i]
+            ref = reference_cylinders[j]
+            dist = (((cyl[0] - ref[0])**2) + ((cyl[1] - ref[1])**2))**(1/2)
+            if dist < max_radius:
+                cylinder_pairs.append((i,j))
 
     # --->>> Insert your previous solution here.
 
@@ -44,7 +51,48 @@ def estimate_transform(left_list, right_list, fix_scale = False):
     # Compute left and right center.
     lc = compute_center(left_list)
     rc = compute_center(right_list)
+    lxc = lc[0]
+    lyc = lc[1]
+    rxc = rc[0]
+    ryc = rc[1]
+    
+    # la, c, s, tx, ty = 0,0,0,0,0
+    cs, ss, rr, ll = 0,0,0,0
+    
+    
+    if (len(left_list) > 1):
+        for i in range(len(left_list)):
+            lx = left_list[i][0]
+            ly = left_list[i][1]
+            rx = right_list[i][0]
+            ry = right_list[i][1]
+            
+            lxp = lx - lxc
+            lyp = ly - lyc
+            rxp = rx - rxc
+            ryp = ry - ryc
+            
+            cs += (rxp*lxp) + (ryp*lyp)
+            ss += (-rxp*lyp) + (ryp*lxp)
+            rr += (rx*rx) + (ry*ry)
+            ll += (lx*lx) + (ly*ly)
+            
+            if fix_scale:
+                la = 1
+            else:
+                la = sqrt(rr/ll)
+    
+            csnorm = sqrt(cs**2 + ss**2)
+            
+            c = cs/csnorm
+            s = ss/csnorm
+            
+            tx = rxc - la*(c*lxc - s*lyc)
+            ty = ryc - la*(s*lxc + c*lyc)
 
+        return la, c, s, tx, ty
+    else:
+        return None
     # --->>> Insert your previous solution here.
 
     return la, c, s, tx, ty
@@ -64,10 +112,13 @@ def apply_transform(trafo, p):
 # similarity transform. Note this changes the position as well as
 # the heading.
 def correct_pose(pose, trafo):
-    
+    p = (pose[0], pose[1])
+    x, y = apply_transform(trafo, p)
+    la, c, s, tx, ty = trafo
+    angle = pose[2] + atan2(s,c)
     # --->>> This is what you'll have to implement.
 
-    return (pose[0], pose[1], pose[2])  # Replace this by the corrected pose.
+    return (x, y, angle)  # Replace this by the corrected pose.
 
 
 if __name__ == '__main__':
@@ -96,8 +147,8 @@ if __name__ == '__main__':
     logfile.read("robot_arena_landmarks.txt")
     reference_cylinders = [l[1:3] for l in logfile.landmarks]
 
-    out_file = file("apply_transform.txt", "w")
-    for i in xrange(len(logfile.scan_data)):
+    out_file = open("apply_transform.txt", "w")
+    for i in range(len(logfile.scan_data)):
         # Compute the new pose.
         pose = filter_step(pose, logfile.motor_ticks[i],
                            ticks_to_mm, robot_width,
@@ -133,7 +184,7 @@ if __name__ == '__main__':
 
         # Write to file.
         # The pose.
-        print >> out_file, "F %f %f %f" % pose
+        print("F %f %f %f" % pose, file = out_file)
         # The detected cylinders in the scanner's coordinate system.
         write_cylinders(out_file, "D C", cartesian_cylinders)
         # The detected cylinders, transformed using the estimated trafo.
