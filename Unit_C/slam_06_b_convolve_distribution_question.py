@@ -10,18 +10,31 @@ def move(distribution, delta):
     return Distribution(distribution.offset + delta, distribution.values)
 
 def convolve(a, b):
+#    print(a.values)
+#    print(b.values)
+    distributions = []
+    new_offset = a.offset + b.offset -1
+    for a_val in a.values:
+        val = []
+        for b_val in b.values:
+            val.append(a_val*b_val)
+        new_offset = new_offset + 1
+        distributions.append(Distribution(new_offset,val))
+    c = Distribution.sum(distributions)
+
+
     """Convolve distribution a and b and return the resulting new distribution."""
 
     # --->>> Put your code here.
     
-    return a  # Replace this by your own result.
+    return c  # Replace this by your own result.
 
 
 if __name__ == '__main__':
     arena = (0,100)
 
     # Move 3 times by 20.
-    moves = [20] * 3
+    moves = [20] * 50
 
     # Start with a known position: probability 1.0 at position 10.
     position = Distribution.unit_pulse(10)

@@ -1,5 +1,6 @@
 # Python routines useful for handling ikg's LEGO robot data.
 # Author: Claus Brenner, 28.10.2012
+from math import sin, cos, pi
 
 # In previous versions, the S record included the number of scan points.
 # If so, set this to true.
@@ -12,8 +13,10 @@ s_record_has_count = True
 # I indices of poles in the scan data (determined by an external algorithm)
 # M motor (ticks from the odometer) data
 # F filtered data (robot position, or position and heading angle)
+# E (error) standard deviation in position, or position and heading angle
 # L landmark (reference landmark, fixed)
-# D detected landmark, in the scanner's coordinate system
+# D detected landmark, in the scanner's coordinate system. C is cylinders
+# W something to draw in the world coordinate system. C is cylinders.
 #
 class LegoLogfile(object):
     def __init__(self):
@@ -22,8 +25,10 @@ class LegoLogfile(object):
         self.pole_indices = []
         self.motor_ticks = []
         self.filtered_positions = []
+        self.filtered_stddev = []
         self.landmarks = []
         self.detected_cylinders = []
+        self.world_cylinders = []
         self.last_ticks = None
 
     def read(self, filename):
@@ -38,8 +43,10 @@ class LegoLogfile(object):
         first_pole_indices = True
         first_motor_ticks = True
         first_filtered_positions = True
+        first_filtered_stddev = True
         first_landmarks = True
         first_detected_cylinders = True
+        first_world_cylinders = True
         f = open(filename)
         for l in f:
             sp = l.split()
@@ -100,12 +107,33 @@ class LegoLogfile(object):
             # OR:          F x[in mm] y[in mm] heading[in radians]
             # Stored: A list of tuples, each tuple is (x y) or (x y heading)
             elif sp[0] == 'F':
-                print("F")
                 if first_filtered_positions:
                     self.filtered_positions = []
                     first_filtered_positions = False
-                self.filtered_positions.append( tuple( map(float, sp[1:])) )
+                l = map(float, sp[1:])
+                ll = []
+                for i in l:
+                    ll.append(float(i))
+                self.filtered_positions.append( tuple( ll) )
 
+            # E is error of filtered trajectory. No time stamp is used.
+            # File format: E (angle of main axis)[in radians] std-dev1 std-dev2
+            # OR:          The same format but with std-dev-heading appended.
+            # Note: std-dev1 is along the main axis, std-dev2 is along the
+            # second axis, which is orthogonal to the main axis.
+            # Stored: A list of tuples, each tuple is
+            # (angle, std-dev1, std-dev2) or
+            # (angle, std-dev1, std-dev2, std-dev-heading).
+            elif sp[0] == 'E':
+                if first_filtered_stddev:
+                    self.filtered_stddev = []
+                    first_filtered_stddev = False
+                l = map(float, sp[1:])
+                ll = []
+                for i in l:
+                    ll.append(float(i))
+                self.filtered_stddev.append( tuple( ll) )
+                
             # L is landmark. This is actually background information, independent
             # of time.
             # File format: L <type> info...
@@ -113,54 +141,77 @@ class LegoLogfile(object):
             # Cylinder: L C x y diameter.
             # Stored: List of (<type> info) tuples.
             elif sp[0] == 'L':
-#                print("LC")
-
                 if first_landmarks:
                     self.landmarks = []
                     first_landmarks = False
                 if sp[1] == 'C':
-                    self.landmarks.append( tuple(['C'] + list(map(float, sp[2:]))) )
+                    l = map(float, sp[2:])
+                    ll = []
+                    for i in l:
+                        ll.append(float(i))
+                    self.landmarks.append( tuple(['C'] + ll) )
                     
             # D is detected landmarks (in each scan).
             # File format: D <type> info...
             # Supported types:
             # Cylinder: D C x y x y ...
-            # Stored: List of lists of (x, y) tuples of the cylinder positions,
-            #  one list per scan.
+            #   Stored: List of lists of (x, y) tuples of the cylinder positions,
+            #   one list per scan.
             elif sp[0] == 'D':
-                print("DC")
-
                 if sp[1] == 'C':
                     if first_detected_cylinders:
                         self.detected_cylinders = []
                         first_detected_cylinders = False
-                    
                     cyl = map(float, sp[2:])
-                    
-#                    new_cyl = []
-#                    for i in cyl:
-#                        new_cyl.append(float(i))
-#                    for k in range(int(len(new_cyl)/2)):
-#                        self.detected_cylinders.append((new_cyl[2*k],new_cyl[2*k+1]))
-#                    print(list(cyl))
                     cyll = []
                     for i in cyl:
                         cyll.append(float(i))
                     self.detected_cylinders.append([(cyll[2*i], cyll[2*i+1]) for i in range(len(cyll)//2)])
-                        
-# self.detected_cylinders.append([(cyl[2*i], cyl[2*i+1]]) for i in range(len(cyl)/2)])
+#                    self.detected_cylinders.append([(cyl[2*i], cyl[2*i+1]) for i in range(len(cyl)/2)])
+
+            # W is information to be plotted in the world (in each scan).
+            # File format: W <type> info...
+            # Supported types:
+            # Cylinder: W C x y x y ...
+            #   Stored: List of lists of (x, y) tuples of the cylinder positions,
+            #   one list per scan.
+            elif sp[0] == 'W':
+                if sp[1] == 'C':
+#                    print(sp)
+                    if first_world_cylinders:
+                        self.world_cylinders = []
+                        first_world_cylinders = False
+                    cyl = map(float, sp[2:])
+                    cyll = []
+                    for i in cyl:
+                        cyll.append(float(i))
+                    self.world_cylinders.append([(cyll[2*i], cyll[2*i+1]) for i in range(len(cyll)//2)])
+
+#                    self.world_cylinders.append([(cyl[2*i], cyl[2*i+1]) for i in range(len(cyl)/2)])
+
         f.close()
 
     def size(self):
         """Return the number of entries. Take the max, since some lists may be empty."""
         return max(len(self.reference_positions), len(self.scan_data),
                    len(self.pole_indices), len(self.motor_ticks),
-                   len(self.filtered_positions), len(self.detected_cylinders))
+                   len(self.filtered_positions), len(self.filtered_stddev),
+                   len(self.detected_cylinders), len(self.world_cylinders))
 
     @staticmethod
     def beam_index_to_angle(i, mounting_angle = -0.06981317007977318):
         """Convert a beam index to an angle, in radians."""
         return (i - 330.0) * 0.006135923151543 + mounting_angle
+
+    @staticmethod
+    def scanner_to_world(pose, point):
+        """Given a robot pose (rx, ry, heading) and a point (x, y) in the
+           scanner's coordinate system, return the point's coordinates in the
+           world coordinate system."""
+        dx = cos(pose[2])
+        dy = sin(pose[2])
+        x, y = point
+        return (x * dx - y * dy + pose[0], x * dy + y * dx + pose[1])        
 
     def info(self, i):
         """Prints reference pos, number of scan points, and motor ticks."""
@@ -186,7 +237,19 @@ class LegoLogfile(object):
         if i < len(self.filtered_positions):
             f = self.filtered_positions[i]
             s += " | filtered-pos:"
-            for j in range(len(f)):
+            for j in (0,1):
                 s += " %.1f" % f[j]
+            if len(f) > 2:
+                s += " %.1f" % (f[2] / pi * 180.)
+
+        if i < len(self.filtered_stddev):
+            stddev = self.filtered_stddev[i]
+            s += " | stddev:"
+            # Print stddev in both axes, and theta, if present.
+            # Don't print the orientation angle stddev[0].
+            for j in (1,2):
+                s += " %.1f" % stddev[j]
+            if len(stddev) > 3:
+                s += " %.1f" % (stddev[3] / pi * 180.)
 
         return s

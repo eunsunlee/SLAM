@@ -14,11 +14,40 @@ def move(distribution, delta):
 
 
 # --->>> Copy your convolve(a, b) and multiply(a, b) functions here.
+def convolve(a, b):
+    #    print(a.values)
+    #    print(b.values)
+    distributions = []
+    new_offset = a.offset + b.offset -1
+    for a_val in a.values:
+        val = []
+        for b_val in b.values:
+            val.append(a_val*b_val)
+        new_offset = new_offset + 1
+        distributions.append(Distribution(new_offset,val))
+    c = Distribution.sum(distributions)
+    return c  # Replace this by your own result.
+
+def multiply(a, b):
+    """Multiply two distributions and return the resulting distribution."""
+    
+    start = min([a.start(),b.start()])
+    stop  = max([a.stop(),b.stop()])
+    mul_dist = []
+    
+    for ix in range(start,stop):
+        mul_dist.append(a.value(ix) * b.value(ix))
+    
+    d = Distribution(start, mul_dist)
+    Distribution.normalize(d)
+    # --->>> Put your code here.
+    
+    return d  # Modify this to return your result.
 
 
 
 if __name__ == '__main__':
-    arena = (0,220)
+    arena = (0,2200)
 
     # Start position. Exactly known - a unit pulse.
     start_position = 10
@@ -27,7 +56,7 @@ if __name__ == '__main__':
          linestyle='steps')
 
     # Movement data.
-    controls  =    [ 20 ] * 10
+    controls  =    [ 20 ] * 100
 
     # Measurement data. Assume (for now) that the measurement data
     # is correct. - This code just builds a cumulative list of the controls,
@@ -39,7 +68,7 @@ if __name__ == '__main__':
         measurements.append(p)
 
     # This is the filter loop.
-    for i in xrange(len(controls)):
+    for i in range(len(controls)):
         # Move, by convolution. Also termed "prediction".
         control = Distribution.triangle(controls[i], 10)
         position = convolve(position, control)

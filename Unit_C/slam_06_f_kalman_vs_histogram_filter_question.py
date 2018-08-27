@@ -54,12 +54,19 @@ def kalman_filter_step(belief, control, measurement):
     """Bayes filter step implementation: Kalman filter."""
 
     # --->>> Put your code here.
-    
-    # Prediction.
-    prediction = Density(belief.mu + 10.0, belief.sigma2 + 100.0)  # Replace
+    #Prediction
+    a = 1
+    mu_t_bar = a*belief.mu + control.mu
+    sigma_t_bar = (a**2)*belief.sigma2 + control.sigma2
+    prediction = Density(mu_t_bar,sigma_t_bar)
 
     # Correction.
-    correction = prediction  # Replace
+    c = 1
+    K = (c*sigma_t_bar)/((c**2)*sigma_t_bar + measurement.sigma2)
+    mu = mu_t_bar + K*(measurement.mu - c*mu_t_bar)
+    sigma = (1-K*c)*sigma_t_bar
+    correction = Density(mu,sigma)
+
 
     return (prediction, correction)
 
@@ -81,7 +88,7 @@ if __name__ == '__main__':
     measurements_ = [ Density(60, 10**2), Density(140, 20**2) ]  # Kalman
 
     # This is the filter loop.
-    for i in xrange(len(controls)):
+    for i in range(len(controls)):
         # Histogram
         (prediction, position) = histogram_filter_step(position, controls[i], measurements[i])
         histogram_plot(prediction, measurements[i], position)

@@ -7,9 +7,18 @@ from distribution import *
 def multiply(a, b):
     """Multiply two distributions and return the resulting distribution."""
 
+    start = min([a.start(),b.start()])
+    stop  = max([a.stop(),b.stop()])
+    mul_dist = []
+
+    for ix in range(start,stop):
+        mul_dist.append(a.value(ix) * b.value(ix))
+    
+    d = Distribution(start, mul_dist)
+    Distribution.normalize(d)
     # --->>> Put your code here.
     
-    return a  # Modify this to return your result.
+    return d  # Modify this to return your result.
 
 
 if __name__ == '__main__':
@@ -24,7 +33,7 @@ if __name__ == '__main__':
 
     # Here is our measurement. Plotted in green.
     # That is what we read from the instrument.
-    measured_value = 410
+    measured_value = 550
     measurement_error = 200
     measurement = Distribution.triangle(measured_value, measurement_error)
     plot(measurement.plotlists(*arena)[0], measurement.plotlists(*arena)[1],
